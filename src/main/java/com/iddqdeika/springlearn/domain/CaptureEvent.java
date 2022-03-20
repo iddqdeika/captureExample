@@ -34,6 +34,12 @@ public class CaptureEvent {
         this.values.put(key, value);
     }
 
+    public CaptureEvent(String table, Integer operation, Map<String, String> values){
+        this.table = table;
+        this.operation = operation;
+        this.values = values;
+    }
+
     public String getTable() {
         return table;
     }

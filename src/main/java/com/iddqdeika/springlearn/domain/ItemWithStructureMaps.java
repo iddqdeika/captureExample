@@ -7,7 +7,11 @@ public class ItemWithStructureMaps {
 
     public String id;
     public CaptureEvent revision;
-    public Map<Long, CaptureEvent> maps = new HashMap<>();
+    public Map<String, CaptureEvent> maps;
+
+    public ItemWithStructureMaps(){
+        this.maps = new HashMap<>();
+    }
 
     public ItemWithStructureMaps withId(String id){
         this.id = id;
@@ -20,7 +24,11 @@ public class ItemWithStructureMaps {
     }
 
     public ItemWithStructureMaps addMap(CaptureEvent map){
-        maps.put(1L, map);
+        String id = map.getValues().get("ID");
+        if (id == null){
+            return this;
+        }
+        maps.put(id, map);
         return this;
     }
 

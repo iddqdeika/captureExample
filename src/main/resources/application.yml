@@ -1,13 +1,7 @@
 spring:
-  json:
-    use:
-      type:
-        headers: false
   kafka:
     streams:
+      cleanup:
+        on-startup: true
       application-id: my-id
     bootstrap-servers: kafka-content-01.test.cloud.croc-comp.goods.local:9092,kafka-content-02.test.cloud.croc-comp.goods.local:9092,kafka-content-03.test.cloud.croc-comp.goods.local:9092
-kafka:
-  topology:
-    words-topic: testName
-    count-topic: counttopic

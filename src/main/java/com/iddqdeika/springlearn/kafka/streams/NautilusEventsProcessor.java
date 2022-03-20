@@ -21,7 +21,10 @@ public class NautilusEventsProcessor {
     private static final Serde<ItemWithStructureMaps> ITEM_WITH_STRUCTURE_MAPS_SERDE = new ItemWithStructureMapsSerde();
 
     static final String STRUCTURE_MAPS_TABLE = "[HPM_MASTER].dbo.ArticleStructureMap";
+    static final String STRUCTURE_MAPS_FK = "ArticleRevisionID";
+
     static final String REVISION_TABLE = "[HPM_MASTER].dbo.ArticleRevision";
+    static final String REVISION_TABLE_KEY = "ID";
 
     static final String TOPIC = "item-storage.nautilus.cdc.ArticleStructureMap-test01";
     static final String OUTPUT_TOPIC = "output";
@@ -36,47 +39,51 @@ public class NautilusEventsProcessor {
     }
 
     /**
-     * Джойнит игрегаты привязок с информацией о позициях (добавляя в аггрегат актуальный ивент позиции)
-     * и выводит изменения в аутпут топик
-     * @param maps
-     * @param articles
-     */
-    private void joinAndOutput(KTable<String, ItemWithStructureMaps> maps, KTable<String, CaptureEvent> articles) {
-        maps.join(articles, ItemWithStructureMaps::withRevision)
-                .toStream()
-                .peek(this::printResult)
-                .to(OUTPUT_TOPIC, Produced.with(STRING_SERDE, ITEM_WITH_STRUCTURE_MAPS_SERDE));
-    }
-
-    /**
      * Собирает из потока только события ArticleRevision в KTable, чтобы иметь хранилище с существующими ArticleRevision
      * @param stream - поток ивентов CaptureEvent
      * @return таблица, в которой по ArticleId хранится последнее состояние этой записи (CaptureEvent)
      */
     private KTable<String, CaptureEvent> storeArticlesById(KStream<String, CaptureEvent> stream) {
-        KTable<String, CaptureEvent> articles = stream.filter((s, captureEvent) -> captureEvent.getTable().equals(REVISION_TABLE))
-                .map((s, captureEvent) -> KeyValue.pair(captureEvent.getValues().get("ID"), captureEvent))
+        return stream
+                .filter((s, captureEvent) -> captureEvent.getTable().equals(REVISION_TABLE)
+                        && captureEvent.getValues() != null)
+                .map((s, captureEvent) -> KeyValue.pair(captureEvent.getValues().get(REVISION_TABLE_KEY), captureEvent))
                 .peek(this::printEvent)
                 .toTable(NamedInternal.empty(), Materialized.with(STRING_SERDE, CAPTURE_EVENT_SERDE));
-        return articles;
     }
 
     /**
      * Собираем из потока только события ArticleStructureMap и аггрегирует в ItemWithStructureMaps
      * ItemWithStructureMaps может содержать несколько привязок,
      * поэтому все новые привязки добавляются в агрегат через метод
-     * @param stream
-     * @return
+     * @param stream поток изменений
+     * @return табличка с аггрегированными привязками. ключом является ArticleRevisionID
      */
     private KTable<String, ItemWithStructureMaps> aggregateStructureMapsByArticleId(KStream<String, CaptureEvent> stream) {
-        return stream.filter((s, captureEvent) -> captureEvent.getTable().equals(STRUCTURE_MAPS_TABLE))
-                .map((s, captureEvent) -> KeyValue.pair(captureEvent.getValues().get("ArticleID"), captureEvent))
+        return stream
+                .filter((s, captureEvent) -> captureEvent.getTable().equals(STRUCTURE_MAPS_TABLE)
+                        && captureEvent.getValues() != null)
+                .map((s, captureEvent) ->
+                        KeyValue.pair(captureEvent.getValues().get(STRUCTURE_MAPS_FK), captureEvent))
                 .peek(this::printEvent)
                 .groupByKey(Serialized.with(STRING_SERDE, CAPTURE_EVENT_SERDE))
                 .aggregate(ItemWithStructureMaps::new,
                         (s, captureEvent, itemWithStructureMaps) ->
                                 itemWithStructureMaps.withId(s).addMap(captureEvent),
                         Materialized.with(STRING_SERDE, ITEM_WITH_STRUCTURE_MAPS_SERDE));
+    }
+
+    /**
+     * Джойнит игрегаты привязок с информацией о позициях (добавляя в аггрегат актуальный ивент позиции)
+     * и выводит изменения в аутпут топик
+     * @param maps - табличка с аггрегированными привязками
+     * @param articles - табличка с данными ArticleRevision
+     */
+    private void joinAndOutput(KTable<String, ItemWithStructureMaps> maps, KTable<String, CaptureEvent> articles) {
+        maps.join(articles, ItemWithStructureMaps::withRevision)
+                .toStream(Named.as("joinedResult"))
+                .peek(this::printResult)
+                .to(OUTPUT_TOPIC, Produced.with(STRING_SERDE, ITEM_WITH_STRUCTURE_MAPS_SERDE));
     }
 
     /**
@@ -90,8 +97,8 @@ public class NautilusEventsProcessor {
 
     /**
      * печатаем результирующий аггрегат в консоль (херь для дебага)
-     * @param key
-     * @param val
+     * @param key - ключ результата
+     * @param val - результат
      */
     private void printResult(String key, ItemWithStructureMaps val) {
         System.out.println(val.toString());

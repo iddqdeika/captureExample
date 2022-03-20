@@ -9,7 +9,9 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 
 
@@ -30,14 +32,31 @@ public class TestNautilusProcessor {
                     .createOutputTopic("output", new StringDeserializer(), new ItemWithStructureMapsSerde().deserializer());
 
             // закинем данные во входящий
-            inputTopic.pipeInput("key", new CaptureEvent(NautilusEventsProcessor.STRUCTURE_MAPS_TABLE, 2, "ArticleID", "1"));
-            inputTopic.pipeInput("key2", new CaptureEvent(NautilusEventsProcessor.REVISION_TABLE, 2, "ID", "1"));
+            Map<String, String> mapValues;
+
+            mapValues = new HashMap<>();
+            mapValues.put(NautilusEventsProcessor.STRUCTURE_MAPS_FK, "1");
+            mapValues.put("ID", "1");
+            inputTopic.pipeInput("key",
+                    new CaptureEvent(NautilusEventsProcessor.STRUCTURE_MAPS_TABLE, 2, mapValues));
+
+            mapValues = new HashMap<>();
+            mapValues.put(NautilusEventsProcessor.STRUCTURE_MAPS_FK, "1");
+            mapValues.put("ID", "2");
+            inputTopic.pipeInput("key",
+                    new CaptureEvent(NautilusEventsProcessor.STRUCTURE_MAPS_TABLE, 2, mapValues));
+
+            inputTopic.pipeInput("key2",
+                    new CaptureEvent(NautilusEventsProcessor.REVISION_TABLE, 2, NautilusEventsProcessor.REVISION_TABLE_KEY, "1"));
 
             // зачитаем исходящий топик
-            List list = outputTopic.readKeyValuesToList();
+            List<KeyValue<String, ItemWithStructureMaps>> list = outputTopic.readKeyValuesToList();
 
             // проверяем
+            // должен быть ровно 1 результат
             Assert.assertEquals(1, list.size());
+            // у него должно быть 2 привязки
+            Assert.assertEquals(list.get(0).value.maps.size(), 2);
         }
     }
 }
