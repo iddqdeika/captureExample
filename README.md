@@ -9,4 +9,4 @@ PROFIT
 
 вся логика стриминга в com.iddqdeika.springlearn.kafka.streams.NautilusEventsProcessor
 
-есть юнит тест в com.iddqdeika.springlearn.kafka.streams.TestNautilusProcessor, он показывает какие данные ожидаются на входе (не полностью воспроизводит. только ключевые данные)
+есть юнит тест в com.iddqdeika.springlearn.kafka.streams.TestNautilusProcessor, он показывает какие данные ожидаются на входе (не полностью воспроизводит целевую логику. только ключевые данные, позволяющие проверить концепцию джойна)
